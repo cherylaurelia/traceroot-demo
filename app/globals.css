@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* TraceRoot's dark app theme (frontend/ui/src/app/globals.css, 2026-11-06): background
+   hsl(0 0% 7%), card hsl(0 0% 10%), border hsl(0 0% 20%), foreground hsl(0 0% 95%),
+   muted text hsl(0 0% 60%), destructive red for "Yes" findings; Inter. */
+:root {
+  --bg: #121212;
+  --card: #1a1a1a;
+  --line: #333333;
+  --fg: #f2f2f2;
+  --muted: #a3a3a3;
+  --yes: #f07070;
+  --ok: #4ade80;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-yes: var(--yes);
+  --color-ok: var(--ok);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+}
+
+p code,
+li code,
+td code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: #262626;
+  padding: 0.05em 0.3em;
+}

@@ -1,0 +1,16 @@
+{
+  "recorded": "2026-11-06",
+  "stack": "TraceRoot self-hosted from main @ 4bf2166 (make prod-lite), agent and judge both Qwen3-4B-Instruct-2507 Q4_K_M on this laptop",
+  "questions": [
+    { "q": "Which region had the highest net revenue in 2026-09?", "answer": "The APAC region had the highest net revenue in 2026-09 with $8,500.", "truth": "APAC $8,500", "calledTool": true, "correct": true, "trace": "ac3be1a8", "judge": "no" },
+    { "q": "What was total net revenue across all regions in 2026-10?", "answer": "I cannot calculate net revenue for 2026-10 as no data is available for that future period. Please provide a valid date in the past or present.", "truth": "$8,685", "calledTool": false, "correct": false, "trace": "4e878c29", "judge": "yes", "summary": "The agent refused to answer the revenue question for 2026-10 by stating no data is available for a f…" },
+    { "q": "Which product earned the least net revenue in 2026-08?", "answer": "The \"Team\" product earned the least net revenue in 2026-08 at $3,043.00.", "truth": "Team $3,043", "calledTool": true, "correct": true, "trace": "037f7a01", "judge": "yes", "summary": "The agent answered the question without calling the revenue_by tool, instead directly stating the re…" },
+    { "q": "How much more net revenue did the web channel make than sales in 2026-09?", "answer": "The web channel made $12,941 in revenue, while sales made $5,397. The difference is $12,941 - $5,397 = $7,544.", "truth": "$7,544", "calledTool": true, "correct": true, "trace": "5e775425", "judge": "no" },
+    { "q": "What was the combined net revenue of EU and APAC in 2026-10?", "answer": "I cannot calculate net revenue for specific regions like EU and APAC in October 2026 because there is no available data for that future date.", "truth": "$7,189", "calledTool": false, "correct": false, "trace": "e7d00db4", "judge": "yes", "summary": "The agent refused to answer the revenue question about EU and APAC in 2026-10 by stating there is no…" },
+    { "q": "Which channel had higher net revenue overall?", "answer": "The web channel had higher net revenue overall.", "truth": "web ($23,777 vs $17,679)", "calledTool": true, "correct": true, "trace": "36759282", "judge": "no" }
+  ],
+  "ollama": {
+    "before": { "model": "gpt-6.1-sol", "testConnection": "Connected", "runs": ["failed", "failed"], "error": "404: {\"message\":\"model 'gpt-6.1-sol' not found\",\"type\":\"not_found_error\"}" },
+    "after": { "model": "qwen3-4b-local", "testConnection": "Connected", "runs": [ { "q": 0, "judge": "no" }, { "q": 1, "judge": "yes" } ] }
+  }
+}

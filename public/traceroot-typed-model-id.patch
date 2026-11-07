@@ -1,0 +1,197 @@
+From 06723f3b7d21fb0f6b1221bd965933f08ab0b8be Mon Sep 17 00:00:00 2001
+From: Cheryl Aurelia <135518448+cherylaurelia@users.noreply.github.com>
+Date: Fri, 6 Nov 2026 23:09:48 -0500
+Subject: [PATCH] fix(ui): accept a typed model ID when a provider uses a
+ custom Base URL
+
+The BYOK docs say to set a custom Base URL for self-hosted or proxied
+models, but OpenAI, Anthropic and the other catalog adapters only offer
+their curated model IDs. A server such as Ollama or vLLM rejects those
+names, so Test Connection (GET /models) passes and every detector run
+then fails with a 404.
+
+A Base URL on another host than the adapter's default now gets the
+free-text model input the pass-through adapters already use, with the
+catalog IDs kept as suggestions. The adapter's own host, with any path,
+keeps the dropdown.
+
+Co-authored-by: Claude <noreply@anthropic.com>
+---
+ .../components/ModelProvidersTab.test.tsx     | 61 ++++++++++++++++++-
+ .../components/ModelProvidersTab.tsx          | 45 ++++++++++++--
+ 2 files changed, 101 insertions(+), 5 deletions(-)
+
+diff --git a/frontend/ui/src/features/settings/workspace/components/ModelProvidersTab.test.tsx b/frontend/ui/src/features/settings/workspace/components/ModelProvidersTab.test.tsx
+index 101d6482..85c86c81 100644
+--- a/frontend/ui/src/features/settings/workspace/components/ModelProvidersTab.test.tsx
++++ b/frontend/ui/src/features/settings/workspace/components/ModelProvidersTab.test.tsx
+@@ -50,7 +50,7 @@ vi.mock("@/components/ui/select", () => ({
+   ),
+ }));
+ 
+-import { getBaseUrlPayload, ModelProvidersTab } from "./ModelProvidersTab";
++import { curatedModelsFor, getBaseUrlPayload, ModelProvidersTab } from "./ModelProvidersTab";
+ 
+ function renderTab() {
+   const queryClient = new QueryClient({
+@@ -215,6 +215,65 @@ describe("ModelProvidersTab", () => {
+     });
+   });
+ 
++  describe("curatedModelsFor", () => {
++    it("offers the catalog for the adapter's own endpoint", () => {
++      expect(curatedModelsFor("openai", "")?.some((m) => m.id === "o3")).toBe(true);
++      expect(curatedModelsFor("openai", " https://api.openai.com/v1/ ")).not.toBeNull();
++      expect(curatedModelsFor("anthropic", "https://api.anthropic.com/")).not.toBeNull();
++      expect(
++        curatedModelsFor("google", "https://generativelanguage.googleapis.com/v1beta"),
++      ).not.toBeNull();
++    });
++
++    it("takes a typed model ID once the Base URL points somewhere else", () => {
++      expect(curatedModelsFor("openai", "http://localhost:11434/v1")).toBeNull();
++      expect(curatedModelsFor("anthropic", "https://proxy.example.com")).toBeNull();
++    });
++
++    it("keeps free text for pass-through adapters", () => {
++      expect(curatedModelsFor("openrouter", "")).toBeNull();
++    });
++  });
++
++  it("saves a typed model ID for an OpenAI provider with a custom Base URL", async () => {
++    mocks.getModelProviders.mockResolvedValue({
++      byokEnabled: true,
++      providers: [
++        {
++          id: "provider-1",
++          adapter: "openai",
++          provider: "Ollama",
++          keyPreview: "ollama",
++          baseUrl: "http://localhost:11434/v1",
++          customModels: ["qwen3:4b"],
++          withDefaultModels: true,
++          config: null,
++          enabled: true,
++          createdBy: "user-1",
++          createTime: "2026-06-17T00:00:00.000Z",
++          updateTime: "2026-06-17T00:00:00.000Z",
++        },
++      ],
++    });
++    mocks.updateModelProvider.mockResolvedValue({ id: "provider-1" });
++
++    renderTab();
++    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
++
++    // The saved ID shows as itself, not as an "(Unsupported)" dropdown entry.
++    const modelInput = screen.getByDisplayValue("qwen3:4b");
++    expect(modelInput.tagName).toBe("INPUT");
++    fireEvent.change(modelInput, { target: { value: "llama3.2:3b" } });
++    fireEvent.click(screen.getByRole("button", { name: "Update" }));
++
++    await waitFor(() => expect(mocks.updateModelProvider).toHaveBeenCalledTimes(1));
++    expect(mocks.updateModelProvider).toHaveBeenCalledWith(
++      "ws-1",
++      "provider-1",
++      expect.objectContaining({ customModels: ["llama3.2:3b"] }),
++    );
++  });
++
+   it("sends null when a saved Base URL is cleared in edit mode", async () => {
+     mocks.getModelProviders.mockResolvedValue({
+       byokEnabled: true,
+diff --git a/frontend/ui/src/features/settings/workspace/components/ModelProvidersTab.tsx b/frontend/ui/src/features/settings/workspace/components/ModelProvidersTab.tsx
+index aed0db8b..d65554b4 100644
+--- a/frontend/ui/src/features/settings/workspace/components/ModelProvidersTab.tsx
++++ b/frontend/ui/src/features/settings/workspace/components/ModelProvidersTab.tsx
+@@ -41,6 +41,28 @@ import {
+   type ModelProviderResponse,
+ } from "@/lib/api";
+ 
++function urlHost(url: string): string {
++  try {
++    return new URL(url).host;
++  } catch {
++    return url;
++  }
++}
++
++/**
++ * The curated model list to offer for an adapter, or null for a free-text model ID.
++ * A Base URL on another host than the adapter's default points at a server (Ollama,
++ * vLLM, a proxy) whose model IDs the catalog can't know, so it is treated like the
++ * pass-through adapters. The same host with another path (e.g. Google's /v1beta)
++ * keeps the catalog.
++ */
++export function curatedModelsFor(adapter: string, baseUrl: string) {
++  const custom = baseUrl.trim();
++  const fallback = ADAPTER_DEFAULT_BASE_URL[adapter] ?? "";
++  if (custom && urlHost(custom) !== urlHost(fallback)) return null;
++  return ADAPTER_MODELS[adapter as LLMAdapter] ?? null;
++}
++
+ interface ModelProvidersTabProps {
+   workspaceId: string;
+ }
+@@ -258,7 +280,7 @@ export function ModelProvidersTab({ workspaceId }: ModelProvidersTabProps) {
+   }
+ 
+   function addCustomModel() {
+-    const curatedModels = ADAPTER_MODELS[adapter as LLMAdapter];
++    const curatedModels = curatedModelsFor(adapter, baseUrl);
+     if (curatedModels) {
+       const used = new Set(customModels);
+       const next = curatedModels.find((m) => !used.has(m.id));
+@@ -325,7 +347,7 @@ export function ModelProvidersTab({ workspaceId }: ModelProvidersTabProps) {
+   const hasRequiredBaseUrl = adapterConfig?.requiresBaseUrl ? !!baseUrl.trim() : true;
+   const canSave = adapter && providerName && hasCredentials && hasRequiredBaseUrl;
+ 
+-  const curatedModelsForAdapter = adapter ? ADAPTER_MODELS[adapter as LLMAdapter] : null;
++  const curatedModelsForAdapter = adapter ? curatedModelsFor(adapter, baseUrl) : null;
+   const isAddModelDisabled = curatedModelsForAdapter
+     ? curatedModelsForAdapter.every((m) => customModels.includes(m.id))
+     : false;
+@@ -554,9 +576,10 @@ export function ModelProvidersTab({ workspaceId }: ModelProvidersTabProps) {
+                 {(() => {
+                   const protocols = ADAPTER_AVAILABLE_PROTOCOLS[adapter];
+                   const hasMultipleProtocols = protocols && protocols.length > 1;
+-                  const curatedModels = ADAPTER_MODELS[adapter as LLMAdapter];
++                  const curatedModels = curatedModelsFor(adapter, baseUrl);
++                  const suggestions = ADAPTER_MODELS[adapter as LLMAdapter];
+ 
+-                  return customModels.map((model, i) => (
++                  const rows = customModels.map((model, i) => (
+                     <div key={i} className="flex items-center gap-2">
+                       {curatedModels ? (
+                         <Select value={model} onValueChange={(v) => updateCustomModel(i, v)}>
+@@ -581,6 +604,7 @@ export function ModelProvidersTab({ workspaceId }: ModelProvidersTabProps) {
+                       ) : (
+                         <Input
+                           value={model}
++                          list={suggestions ? "curated-model-ids" : undefined}
+                           onChange={(e) => updateCustomModel(i, e.target.value)}
+                           placeholder={
+                             {
+@@ -621,6 +645,19 @@ export function ModelProvidersTab({ workspaceId }: ModelProvidersTabProps) {
+                       </Button>
+                     </div>
+                   ));
++
++                  return (
++                    <>
++                      {rows}
++                      {!curatedModels && suggestions && (
++                        <datalist id="curated-model-ids">
++                          {suggestions.map((m) => (
++                            <option key={m.id} value={m.id} />
++                          ))}
++                        </datalist>
++                      )}
++                    </>
++                  );
+                 })()}
+ 
+                 {customModels.length === 0 && (
+-- 
+2.50.1 (Apple Git-155)
+
