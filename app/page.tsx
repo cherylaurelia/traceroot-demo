@@ -3,8 +3,7 @@ import runs from "@/data/runs.json";
 import { tally, verdict } from "@/lib/runs";
 
 const REPO = "https://github.com/cherylaurelia/traceroot-demo";
-const BRANCH =
-  "https://github.com/cherylaurelia/traceroot/compare/main...fix/openai-base-url-model-id";
+const PR = "https://github.com/traceroot-ai/traceroot/pull/2898";
 const PATCH = "/traceroot-typed-model-id.patch";
 const SRC = "https://github.com/traceroot-ai/traceroot/blob/4bf21665";
 const PICKER = `${SRC}/frontend/ui/src/features/settings/workspace/components/ModelProvidersTab.tsx#L555-L579`;
@@ -95,10 +94,10 @@ export default function Page() {
         </p>
         <div className="flex flex-wrap gap-3 pt-1">
           <a
-            href={BRANCH}
+            href={PR}
             className="bg-fg px-4 py-2 text-sm font-medium text-bg hover:opacity-90"
           >
-            The fix branch
+            The PR (#2898)
           </a>
           <a
             href={PATCH}
